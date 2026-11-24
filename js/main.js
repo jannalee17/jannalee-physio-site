@@ -23,9 +23,14 @@
     });
   }
 
-  /* ---- Static contact form ---- */
-  /* When a real booking backend (or Jane App embed) is wired up, replace this
-     block with the real submit handler. For now it just confirms on screen. */
+  /* ---- Contact form ("Send us a message") -> TMT ---- */
+  /* Submissions POST to a TMT (LeadConnector) inbound-webhook trigger, which
+     creates the contact, tags them "new lead", and emails admin@ so Karen can
+     follow up. The webhook URL is safe to expose in page code -- it accepts
+     submissions but holds no account access. UX is optimistic: we confirm on
+     screen and fire the POST in the background, because a static page can't
+     read a cross-origin webhook response reliably. */
+  var CONTACT_WEBHOOK = "https://services.leadconnectorhq.com/hooks/7bdXPvqO8stQa9HKN74K/webhook-trigger/31a7d664-edc9-42b3-86c9-c3e7657183ab";
   var form = document.getElementById("contactForm");
   if (form) {
     form.addEventListener("submit", function (e) {
@@ -34,6 +39,27 @@
         form.reportValidity();
         return;
       }
+      function fieldVal(id) {
+        var el = document.getElementById(id);
+        return el ? el.value.trim() : "";
+      }
+      var payload = {
+        name: fieldVal("name"),
+        phone: fieldVal("phone"),
+        email: fieldVal("email"),
+        service: fieldVal("service"),
+        preferred: fieldVal("preferred"),
+        message: fieldVal("message"),
+        source: "Website - Send us a message"
+      };
+      fetch(CONTACT_WEBHOOK, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      }).catch(function () {
+        /* Swallow network/CORS errors -- the lead may still have reached TMT,
+           and we don't want to alarm the visitor. Verified end-to-end on setup. */
+      });
       var success = document.getElementById("formSuccess");
       if (success) {
         success.classList.add("show");
@@ -41,7 +67,7 @@
         success.focus();
       }
       form.reset();
-      success.scrollIntoView({ behavior: "smooth", block: "center" });
+      if (success) success.scrollIntoView({ behavior: "smooth", block: "center" });
     });
   }
 
